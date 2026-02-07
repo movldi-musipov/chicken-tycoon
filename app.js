@@ -5,6 +5,9 @@
   const STORAGE_KEY = "car_grid_v1";
   const LONG_PRESS_MS = 420;
   const UNDO_TIMEOUT_MS = 5000;
+  const SOUND_FILES = ["0.mp3", "1.mp3", "2.mp3", "3.mp3", "4.mp3"];
+  const SOUND_POOL_SIZE = 2;
+  const SOUND_VOLUME = 0.55;
 
   const TEXT = {
     title: "Учет автомобилей",
@@ -46,11 +49,51 @@
   let clearSnapshot = null;
   let longPressTimer = null;
   let longPressTriggered = false;
+  let soundPools = [];
+  let soundCursor = [];
 
   const ensureDigit = (value) => {
     if (typeof value !== "string") return "";
     const trimmed = value.trim();
     return /^[0-9]$/.test(trimmed) ? trimmed : "";
+  };
+
+  const initSounds = () => {
+    soundPools = SOUND_FILES.map((file) => {
+      const pool = [];
+      for (let i = 0; i < SOUND_POOL_SIZE; i += 1) {
+        const audio = new Audio(file);
+        audio.preload = "auto";
+        audio.volume = SOUND_VOLUME;
+        pool.push(audio);
+      }
+      return pool;
+    });
+
+    soundCursor = new Array(soundPools.length).fill(0);
+  };
+
+  const playRandomInputSound = () => {
+    if (!soundPools.length) return;
+    const clipIndex = Math.floor(Math.random() * soundPools.length);
+    const pool = soundPools[clipIndex];
+    if (!pool || !pool.length) return;
+
+    const channelIndex = soundCursor[clipIndex] % pool.length;
+    soundCursor[clipIndex] = (soundCursor[clipIndex] + 1) % pool.length;
+
+    const audio = pool[channelIndex];
+    if (!audio) return;
+
+    try {
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {});
+      }
+    } catch (error) {
+      // Ignore playback errors (autoplay policy / unsupported codec).
+    }
   };
 
   const indexToRowCol = (index) => {
@@ -307,6 +350,7 @@
     if (!digit) return;
 
     setCellValue(activeIndex, digit);
+    playRandomInputSound();
     moveNext();
   };
 
@@ -425,6 +469,7 @@
 
     if (event.key >= "0" && event.key <= "9") {
       setCellValue(activeIndex, event.key);
+      playRandomInputSound();
       moveNext();
       event.preventDefault();
       return;
@@ -461,6 +506,7 @@
   };
 
   const init = () => {
+    initSounds();
     applyI18n();
     buildGrid();
     loadState();
