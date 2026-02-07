@@ -16,7 +16,11 @@
   --btn-bg: #151b26;
   --btn-border: rgba(255, 255, 255, 0.16);
   --btn-press: #1f2a3a;
+  --btn-primary: #35d7a8;
+  --btn-primary-fg: #082018;
+  --btn-danger: #ff7f73;
   --toast-bg: rgba(6, 12, 20, 0.9);
+  --sheet-bg: #121a27;
   --font-main: "Fira Sans", "Gill Sans", "Trebuchet MS", sans-serif;
   --font-mono: "Fira Mono", "Consolas", "Courier New", monospace;
 }
@@ -59,6 +63,12 @@ body {
   letter-spacing: 0.3px;
 }
 
+.active-hint {
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 18px;
+}
+
 .toolbar {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -73,9 +83,9 @@ body {
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 700;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+  min-height: 48px;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
 }
 
@@ -90,6 +100,22 @@ body {
 .cell:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.action[data-action="copy"] {
+  background: linear-gradient(180deg, #48e6b8 0%, var(--btn-primary) 100%);
+  border-color: rgba(53, 215, 168, 0.9);
+  color: var(--btn-primary-fg);
+}
+
+.action[data-action="shot"] {
+  background: #1b2434;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.action[data-action="clear"] {
+  color: #ffd3ce;
+  border-color: rgba(255, 127, 115, 0.55);
 }
 
 .main {
@@ -108,6 +134,7 @@ body {
   width: 100%;
   aspect-ratio: 5 / 8;
   max-width: calc(100vw - var(--safe-l) - var(--safe-r));
+  max-height: var(--grid-max-height, none);
   background: var(--grid-bg);
   border: 1px solid var(--grid-line);
   border-radius: 12px;
@@ -149,13 +176,19 @@ body {
 
 .pad {
   font-size: 20px;
-  padding: 14px 0;
+  padding: 12px 0;
   border-radius: 16px;
   font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+.pad-backspace {
+  grid-column: 1 / span 2;
+  font-size: 18px;
 }
 
 .pad-zero {
-  grid-column: 1 / -1;
+  grid-column: 3 / 4;
 }
 
 .toast {
@@ -177,6 +210,111 @@ body {
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+.undo {
+  position: fixed;
+  left: calc(12px + var(--safe-l));
+  right: calc(12px + var(--safe-r));
+  bottom: calc(12px + var(--safe-b));
+  background: rgba(7, 13, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 10px 10px 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transform: translateY(18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+  z-index: 20;
+}
+
+.undo.show {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.undo-text {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.undo-btn,
+.confirm-btn {
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--text);
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.undo-btn {
+  color: #d8fff0;
+  border-color: rgba(53, 215, 168, 0.5);
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
+  background: rgba(2, 5, 10, 0.55);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 30;
+}
+
+.confirm-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.confirm-sheet {
+  width: min(520px, 100%);
+  background: var(--sheet-bg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(14px);
+  transition: transform 180ms ease;
+}
+
+.confirm-backdrop.show .confirm-sheet {
+  transform: translateY(0);
+}
+
+.confirm-sheet p {
+  margin: 0;
+  font-size: 15px;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.confirm-cancel {
+  background: #1b2434;
+}
+
+.confirm-accept {
+  color: #ffd4cf;
+  border-color: rgba(255, 127, 115, 0.65);
+  background: rgba(255, 127, 115, 0.15);
 }
 
 @media (min-width: 600px) {

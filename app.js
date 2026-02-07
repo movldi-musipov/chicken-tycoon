@@ -3,26 +3,54 @@
   const COLS = 5;
   const TOTAL = ROWS * COLS;
   const STORAGE_KEY = "car_grid_v1";
+  const LONG_PRESS_MS = 420;
+  const UNDO_TIMEOUT_MS = 5000;
+  const GRID_RESERVED_GAP = 20;
 
   const TEXT = {
-    title: "\u0423\u0447\u0435\u0442 \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0438\u043b\u0435\u0439",
-    clear: "\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c",
-    copy: "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c",
-    shot: "\u0421\u043a\u0440\u0438\u043d\u0448\u043e\u0442",
-    clearConfirm: "\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c \u0432\u0441\u0435 \u044f\u0447\u0435\u0439\u043a\u0438?",
-    copied: "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e",
-    shotReady: "\u0421\u043a\u0440\u0438\u043d\u0448\u043e\u0442 \u0433\u043e\u0442\u043e\u0432"
+    title: "Учет автомобилей",
+    actionsLabel: "Действия",
+    gridLabel: "Сетка",
+    numpadLabel: "Цифровая клавиатура",
+    clear: "Очистить",
+    copy: "Копировать",
+    shot: "Скриншот",
+    backspace: "⌫",
+    undo: "Отменить",
+    cancel: "Отмена",
+    clearConfirm: "Очистить все ячейки?",
+    copied: "Скопировано",
+    copyFailed: "Не удалось скопировать",
+    shotReady: "Скриншот готов",
+    cleared: "Сетка очищена",
+    undoDone: "Очищение отменено",
+    cellCleared: "Ячейка очищена",
+    activeHint: "Активная ячейка",
+    row: "Строка",
+    col: "Столбец",
+    empty: "пусто"
   };
 
+  const appEl = document.getElementById("app");
+  const topEl = document.querySelector(".top");
   const gridEl = document.getElementById("grid");
   const toastEl = document.getElementById("toast");
+  const activeHintEl = document.getElementById("activeHint");
   const numpadEl = document.querySelector(".numpad");
   const actionButtons = document.querySelectorAll(".action");
+  const undoBarEl = document.getElementById("undoBar");
+  const undoTextEl = document.getElementById("undoText");
+  const undoBtnEl = document.getElementById("undoBtn");
+  const confirmBackdropEl = document.getElementById("confirmBackdrop");
 
   let cells = new Array(TOTAL).fill("");
   let cellEls = [];
   let activeIndex = 0;
   let toastTimer = null;
+  let undoTimer = null;
+  let clearSnapshot = null;
+  let longPressTimer = null;
+  let longPressTriggered = false;
 
   const ensureDigit = (value) => {
     if (typeof value !== "string") return "";
@@ -30,18 +58,46 @@
     return /^[0-9]$/.test(trimmed) ? trimmed : "";
   };
 
+  const indexToRowCol = (index) => {
+    const row = Math.floor(index / COLS);
+    const col = index % COLS;
+    return { row, col };
+  };
+
+  const cellAriaLabel = (index) => {
+    const { row, col } = indexToRowCol(index);
+    const value = cells[index] ? cells[index] : TEXT.empty;
+    return `${TEXT.row} ${row + 1}, ${TEXT.col} ${col + 1}: ${value}`;
+  };
+
+  const updateActiveHint = () => {
+    if (!activeHintEl) return;
+    const { row, col } = indexToRowCol(activeIndex);
+    activeHintEl.textContent = `${TEXT.activeHint}: ${row + 1}:${col + 1}`;
+  };
+
   const applyI18n = () => {
     document.title = TEXT.title;
+
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       const key = el.getAttribute("data-i18n");
-      if (TEXT[key]) {
+      if (key && TEXT[key]) {
         el.textContent = TEXT[key];
       }
     });
+
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+      const key = el.getAttribute("data-i18n-aria-label");
+      if (key && TEXT[key]) {
+        el.setAttribute("aria-label", TEXT[key]);
+      }
+    });
+
+    updateActiveHint();
   };
 
   const showToast = (message) => {
-    if (!message) return;
+    if (!message || !toastEl) return;
     toastEl.textContent = message;
     toastEl.classList.add("show");
     if (toastTimer) {
@@ -53,12 +109,17 @@
   };
 
   const saveState = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cells));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cells));
+    } catch (error) {
+      console.warn("Failed to write stored grid", error);
+    }
   };
 
   const loadState = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
+
     try {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed) || parsed.length !== TOTAL) return;
@@ -68,24 +129,77 @@
     }
   };
 
-  const setActive = (index) => {
+  const hideUndo = () => {
+    if (!undoBarEl) return;
+    if (undoTimer) {
+      clearTimeout(undoTimer);
+      undoTimer = null;
+    }
+    undoBarEl.classList.remove("show");
+    undoBarEl.setAttribute("aria-hidden", "true");
+  };
+
+  const dismissUndoSnapshot = () => {
+    if (!clearSnapshot) return;
+    clearSnapshot = null;
+    hideUndo();
+  };
+
+  const showUndo = (message) => {
+    if (!undoBarEl || !undoTextEl) return;
+    undoTextEl.textContent = message;
+    undoBarEl.classList.add("show");
+    undoBarEl.setAttribute("aria-hidden", "false");
+
+    if (undoTimer) {
+      clearTimeout(undoTimer);
+    }
+    undoTimer = setTimeout(() => {
+      hideUndo();
+      clearSnapshot = null;
+    }, UNDO_TIMEOUT_MS);
+  };
+
+  const updateCellA11y = (index) => {
+    const cellEl = cellEls[index];
+    if (!cellEl) return;
+    cellEl.setAttribute("aria-label", cellAriaLabel(index));
+  };
+
+  const setActive = (index, options = {}) => {
+    const { focus = false } = options;
     const clamped = Math.max(0, Math.min(TOTAL - 1, index));
     activeIndex = clamped;
+
     cellEls.forEach((cell, idx) => {
-      if (idx === clamped) {
-        cell.classList.add("active");
-        cell.setAttribute("aria-selected", "true");
-      } else {
-        cell.classList.remove("active");
-        cell.setAttribute("aria-selected", "false");
-      }
+      const isActive = idx === clamped;
+      cell.classList.toggle("active", isActive);
+      cell.setAttribute("aria-selected", isActive ? "true" : "false");
+      cell.setAttribute("tabindex", isActive ? "0" : "-1");
     });
+
+    if (focus) {
+      const activeCell = cellEls[clamped];
+      if (activeCell) {
+        try {
+          activeCell.focus({ preventScroll: true });
+        } catch (error) {
+          activeCell.focus();
+        }
+      }
+    }
+
+    updateActiveHint();
   };
 
   const setCellValue = (index, value) => {
+    dismissUndoSnapshot();
     const clean = ensureDigit(value);
     cells[index] = clean;
-    cellEls[index].textContent = clean;
+    if (cellEls[index]) {
+      cellEls[index].textContent = clean;
+    }
+    updateCellA11y(index);
     saveState();
   };
 
@@ -95,43 +209,124 @@
     }
   };
 
+  const movePrev = () => {
+    if (activeIndex > 0) {
+      setActive(activeIndex - 1);
+    }
+  };
+
+  const backspace = () => {
+    if (cells[activeIndex]) {
+      setCellValue(activeIndex, "");
+      return;
+    }
+
+    if (activeIndex > 0) {
+      movePrev();
+      setCellValue(activeIndex, "");
+    }
+  };
+
   const buildGrid = () => {
     const fragment = document.createDocumentFragment();
+
     for (let i = 0; i < TOTAL; i += 1) {
       const cell = document.createElement("div");
       cell.className = "cell";
       cell.setAttribute("role", "gridcell");
-      cell.setAttribute("tabindex", "0");
+      cell.setAttribute("tabindex", "-1");
+      cell.setAttribute("aria-selected", "false");
       cell.setAttribute("data-index", String(i));
       fragment.appendChild(cell);
       cellEls.push(cell);
     }
+
     gridEl.appendChild(fragment);
   };
 
   const renderGrid = () => {
     cellEls.forEach((cell, index) => {
       cell.textContent = cells[index] || "";
+      updateCellA11y(index);
     });
+  };
+
+  const syncGridSize = () => {
+    if (!appEl || !topEl || !numpadEl || !gridEl) return;
+    const appStyles = getComputedStyle(appEl);
+    const padTop = Number.parseFloat(appStyles.paddingTop) || 0;
+    const padBottom = Number.parseFloat(appStyles.paddingBottom) || 0;
+    const topHeight = topEl.getBoundingClientRect().height;
+    const padHeight = numpadEl.getBoundingClientRect().height;
+    const available = window.innerHeight - padTop - padBottom - topHeight - padHeight - GRID_RESERVED_GAP;
+
+    if (available > 180) {
+      gridEl.style.setProperty("--grid-max-height", `${Math.floor(available)}px`);
+    } else {
+      gridEl.style.removeProperty("--grid-max-height");
+    }
   };
 
   const handleGridClick = (event) => {
     const cell = event.target.closest(".cell");
     if (!cell) return;
+
+    if (longPressTriggered) {
+      longPressTriggered = false;
+      return;
+    }
+
     const index = Number(cell.getAttribute("data-index"));
     if (!Number.isNaN(index)) {
       setActive(index);
     }
   };
 
+  const clearLongPressTimer = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
+  const handleGridPointerDown = (event) => {
+    const cell = event.target.closest(".cell");
+    if (!cell) return;
+    if (typeof event.button === "number" && event.button !== 0) return;
+
+    const index = Number(cell.getAttribute("data-index"));
+    if (Number.isNaN(index)) return;
+
+    clearLongPressTimer();
+    longPressTriggered = false;
+
+    longPressTimer = setTimeout(() => {
+      setActive(index);
+      if (cells[index]) {
+        setCellValue(index, "");
+        showToast(TEXT.cellCleared);
+      }
+      if (navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+      longPressTriggered = true;
+      clearLongPressTimer();
+    }, LONG_PRESS_MS);
+  };
+
   const handleNumpadClick = (event) => {
     const button = event.target.closest("button");
     if (!button) return;
+
+    const key = button.getAttribute("data-key");
+    if (key === "backspace") {
+      backspace();
+      return;
+    }
+
     const digit = button.getAttribute("data-digit");
     if (!digit) return;
-    if (activeIndex == null) {
-      setActive(0);
-    }
+
     setCellValue(activeIndex, digit);
     moveNext();
   };
@@ -166,16 +361,9 @@
       }
       showToast(TEXT.copied);
     } catch (error) {
+      showToast(TEXT.copyFailed);
       console.error("Copy failed", error);
     }
-  };
-
-  const clearGrid = () => {
-    if (!window.confirm(TEXT.clearConfirm)) return;
-    cells = new Array(TOTAL).fill("");
-    renderGrid();
-    setActive(0);
-    saveState();
   };
 
   const renderScreenshot = () => {
@@ -203,7 +391,6 @@
 
     ctx.strokeStyle = line;
     ctx.lineWidth = 1;
-
     ctx.strokeRect(0, 0, rect.width, rect.height);
 
     for (let col = 1; col < COLS; col += 1) {
@@ -247,14 +434,120 @@
     showToast(TEXT.shotReady);
   };
 
+  const isConfirmOpen = () => Boolean(confirmBackdropEl && !confirmBackdropEl.hidden);
+
+  const openClearConfirm = () => {
+    if (!confirmBackdropEl) return;
+    confirmBackdropEl.hidden = false;
+    requestAnimationFrame(() => {
+      confirmBackdropEl.classList.add("show");
+    });
+  };
+
+  const closeClearConfirm = () => {
+    if (!confirmBackdropEl) return;
+    confirmBackdropEl.classList.remove("show");
+    setTimeout(() => {
+      if (!confirmBackdropEl.classList.contains("show")) {
+        confirmBackdropEl.hidden = true;
+      }
+    }, 200);
+  };
+
+  const clearGridWithUndo = () => {
+    clearSnapshot = {
+      cells: cells.slice(),
+      activeIndex
+    };
+
+    cells = new Array(TOTAL).fill("");
+    renderGrid();
+    setActive(0);
+    saveState();
+    showUndo(TEXT.cleared);
+  };
+
+  const undoClear = () => {
+    if (!clearSnapshot) return;
+    cells = clearSnapshot.cells.slice();
+    renderGrid();
+    setActive(clearSnapshot.activeIndex);
+    saveState();
+    clearSnapshot = null;
+    hideUndo();
+    showToast(TEXT.undoDone);
+  };
+
   const handleAction = (event) => {
     const action = event.currentTarget.getAttribute("data-action");
     if (action === "clear") {
-      clearGrid();
+      openClearConfirm();
     } else if (action === "copy") {
       copyGrid();
     } else if (action === "shot") {
       renderScreenshot();
+    }
+  };
+
+  const handleConfirmClick = (event) => {
+    const button = event.target.closest("button[data-confirm]");
+    if (!button) return;
+    const command = button.getAttribute("data-confirm");
+    if (command === "accept") {
+      clearGridWithUndo();
+    }
+    closeClearConfirm();
+  };
+
+  const handleConfirmBackdropClick = (event) => {
+    if (event.target === confirmBackdropEl) {
+      closeClearConfirm();
+    }
+  };
+
+  const handleKeydown = (event) => {
+    if (isConfirmOpen()) {
+      if (event.key === "Escape") {
+        closeClearConfirm();
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (event.key >= "0" && event.key <= "9") {
+      setCellValue(activeIndex, event.key);
+      moveNext();
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "Backspace" || event.key === "Delete") {
+      backspace();
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowLeft" && activeIndex % COLS !== 0) {
+      setActive(activeIndex - 1, { focus: true });
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowRight" && activeIndex % COLS !== COLS - 1) {
+      setActive(activeIndex + 1, { focus: true });
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowUp" && activeIndex >= COLS) {
+      setActive(activeIndex - COLS, { focus: true });
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowDown" && activeIndex < TOTAL - COLS) {
+      setActive(activeIndex + COLS, { focus: true });
+      event.preventDefault();
     }
   };
 
@@ -266,10 +559,29 @@
     setActive(0);
 
     gridEl.addEventListener("click", handleGridClick);
+    gridEl.addEventListener("pointerdown", handleGridPointerDown);
+    gridEl.addEventListener("pointerup", clearLongPressTimer);
+    gridEl.addEventListener("pointercancel", clearLongPressTimer);
+    gridEl.addEventListener("pointerleave", clearLongPressTimer);
     numpadEl.addEventListener("click", handleNumpadClick);
     actionButtons.forEach((button) => {
       button.addEventListener("click", handleAction);
     });
+
+    if (undoBtnEl) {
+      undoBtnEl.addEventListener("click", undoClear);
+    }
+
+    if (confirmBackdropEl) {
+      confirmBackdropEl.addEventListener("click", handleConfirmClick);
+      confirmBackdropEl.addEventListener("click", handleConfirmBackdropClick);
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    window.addEventListener("resize", syncGridSize);
+    window.addEventListener("orientationchange", syncGridSize);
+    syncGridSize();
+    setTimeout(syncGridSize, 60);
   };
 
   init();
