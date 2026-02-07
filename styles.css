@@ -71,7 +71,7 @@ body {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
@@ -108,11 +108,6 @@ body {
   color: var(--btn-primary-fg);
 }
 
-.action[data-action="shot"] {
-  background: #1b2434;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
 .action[data-action="clear"] {
   color: #ffd3ce;
   border-color: rgba(255, 127, 115, 0.55);
@@ -134,7 +129,6 @@ body {
   width: 100%;
   aspect-ratio: 5 / 8;
   max-width: calc(100vw - var(--safe-l) - var(--safe-r));
-  max-height: var(--grid-max-height, none);
   background: var(--grid-bg);
   border: 1px solid var(--grid-line);
   border-radius: 12px;

@@ -5,7 +5,6 @@
   const STORAGE_KEY = "car_grid_v1";
   const LONG_PRESS_MS = 420;
   const UNDO_TIMEOUT_MS = 5000;
-  const GRID_RESERVED_GAP = 20;
 
   const TEXT = {
     title: "Учет автомобилей",
@@ -14,14 +13,12 @@
     numpadLabel: "Цифровая клавиатура",
     clear: "Очистить",
     copy: "Копировать",
-    shot: "Скриншот",
     backspace: "⌫",
     undo: "Отменить",
     cancel: "Отмена",
     clearConfirm: "Очистить все ячейки?",
     copied: "Скопировано",
     copyFailed: "Не удалось скопировать",
-    shotReady: "Скриншот готов",
     cleared: "Сетка очищена",
     undoDone: "Очищение отменено",
     cellCleared: "Ячейка очищена",
@@ -31,8 +28,6 @@
     empty: "пусто"
   };
 
-  const appEl = document.getElementById("app");
-  const topEl = document.querySelector(".top");
   const gridEl = document.getElementById("grid");
   const toastEl = document.getElementById("toast");
   const activeHintEl = document.getElementById("activeHint");
@@ -251,22 +246,6 @@
     });
   };
 
-  const syncGridSize = () => {
-    if (!appEl || !topEl || !numpadEl || !gridEl) return;
-    const appStyles = getComputedStyle(appEl);
-    const padTop = Number.parseFloat(appStyles.paddingTop) || 0;
-    const padBottom = Number.parseFloat(appStyles.paddingBottom) || 0;
-    const topHeight = topEl.getBoundingClientRect().height;
-    const padHeight = numpadEl.getBoundingClientRect().height;
-    const available = window.innerHeight - padTop - padBottom - topHeight - padHeight - GRID_RESERVED_GAP;
-
-    if (available > 180) {
-      gridEl.style.setProperty("--grid-max-height", `${Math.floor(available)}px`);
-    } else {
-      gridEl.style.removeProperty("--grid-max-height");
-    }
-  };
-
   const handleGridClick = (event) => {
     const cell = event.target.closest(".cell");
     if (!cell) return;
@@ -366,74 +345,6 @@
     }
   };
 
-  const renderScreenshot = () => {
-    const rect = gridEl.getBoundingClientRect();
-    const scale = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(rect.width * scale);
-    canvas.height = Math.round(rect.height * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.scale(scale, scale);
-
-    const rootStyles = getComputedStyle(document.documentElement);
-    const bg = rootStyles.getPropertyValue("--grid-bg").trim() || "#0c1119";
-    const line = rootStyles.getPropertyValue("--grid-line").trim() || "rgba(255,255,255,0.14)";
-    const textColor = rootStyles.getPropertyValue("--text").trim() || "#ffffff";
-    const fontFamily = getComputedStyle(gridEl).fontFamily || "sans-serif";
-
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-
-    const cellW = rect.width / COLS;
-    const cellH = rect.height / ROWS;
-
-    ctx.strokeStyle = line;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, rect.width, rect.height);
-
-    for (let col = 1; col < COLS; col += 1) {
-      const x = col * cellW;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, rect.height);
-      ctx.stroke();
-    }
-
-    for (let row = 1; row < ROWS; row += 1) {
-      const y = row * cellH;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
-      ctx.stroke();
-    }
-
-    const fontSize = Math.min(cellW, cellH) * 0.55;
-    ctx.fillStyle = textColor;
-    ctx.font = `700 ${fontSize}px ${fontFamily}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    for (let row = 0; row < ROWS; row += 1) {
-      for (let col = 0; col < COLS; col += 1) {
-        const index = row * COLS + col;
-        const value = cells[index];
-        if (!value) continue;
-        const x = col * cellW + cellW / 2;
-        const y = row * cellH + cellH / 2;
-        ctx.fillText(value, x, y);
-      }
-    }
-
-    const link = document.createElement("a");
-    link.download = "car-grid.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-
-    showToast(TEXT.shotReady);
-  };
-
   const isConfirmOpen = () => Boolean(confirmBackdropEl && !confirmBackdropEl.hidden);
 
   const openClearConfirm = () => {
@@ -484,8 +395,6 @@
       openClearConfirm();
     } else if (action === "copy") {
       copyGrid();
-    } else if (action === "shot") {
-      renderScreenshot();
     }
   };
 
@@ -578,10 +487,6 @@
     }
 
     document.addEventListener("keydown", handleKeydown);
-    window.addEventListener("resize", syncGridSize);
-    window.addEventListener("orientationchange", syncGridSize);
-    syncGridSize();
-    setTimeout(syncGridSize, 60);
   };
 
   init();
