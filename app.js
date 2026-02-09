@@ -10,10 +10,13 @@
   const SOUND_VOLUME = 0.55;
   const IMAGE_WIDTH = 1000;
   const IMAGE_PADDING = 40;
-  const IMAGE_LINE_W = 4;
-  const IMAGE_BG = "#0c1119";
-  const IMAGE_LINE = "#8ea0bc";
-  const IMAGE_TEXT = "#f5f7ff";
+  const IMAGE_LINE_W = 5;
+  const IMAGE_BG = "#f4efe4";
+  const IMAGE_LINE = "#2b56a4";
+  const IMAGE_TEXT = "#1a1a2e";
+  const IMAGE_GRID_SUBTLE = "rgba(155, 180, 215, 0.22)";
+  const IMAGE_GRID_STEP = 22;
+  const IMAGE_CELL_HEIGHT_RATIO = 1.25;
 
   const TEXT = {
     title: "Учет автомобилей",
@@ -426,9 +429,9 @@
 
   const buildGridCanvas = () => {
     const gridWidth = IMAGE_WIDTH - IMAGE_PADDING * 2;
-    const gridHeight = Math.round((gridWidth * 7.6) / 5);
     const cellWidth = gridWidth / COLS;
-    const cellHeight = gridHeight / ROWS;
+    const cellHeight = Math.round(cellWidth * IMAGE_CELL_HEIGHT_RATIO);
+    const gridHeight = cellHeight * ROWS;
     const height = gridHeight + IMAGE_PADDING * 2;
 
     const canvas = document.createElement("canvas");
@@ -438,9 +441,25 @@
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
+    // Paper background
     ctx.fillStyle = IMAGE_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Subtle graph-paper grid over entire canvas
+    ctx.strokeStyle = IMAGE_GRID_SUBTLE;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += IMAGE_GRID_STEP) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+    }
+    for (let y = 0; y < canvas.height; y += IMAGE_GRID_STEP) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
+
+    // Bold blue grid lines
     ctx.strokeStyle = IMAGE_LINE;
     ctx.lineWidth = IMAGE_LINE_W;
     ctx.strokeRect(IMAGE_PADDING, IMAGE_PADDING, gridWidth, gridHeight);
@@ -458,10 +477,11 @@
     }
     ctx.stroke();
 
+    // Bold dark text
     ctx.fillStyle = IMAGE_TEXT;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `${Math.round(cellHeight * 0.52)}px "Fira Sans", "Trebuchet MS", sans-serif`;
+    ctx.font = `900 ${Math.round(cellHeight * 0.48)}px "Fira Sans", "Trebuchet MS", sans-serif`;
 
     for (let row = 0; row < ROWS; row += 1) {
       for (let col = 0; col < COLS; col += 1) {
