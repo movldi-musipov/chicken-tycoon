@@ -7,7 +7,8 @@
   --bg-1: #111722;
   --bg-2: #0e131b;
   --grid-bg: #0c1119;
-  --grid-line: rgba(255, 255, 255, 0.14);
+  --grid-line: rgba(255, 255, 255, 0.28);
+  --grid-line-w: 2px;
   --text: #f5f7ff;
   --muted: rgba(255, 255, 255, 0.55);
   --accent: #31d5a1;
@@ -71,7 +72,7 @@ body {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
@@ -103,9 +104,15 @@ body {
 }
 
 .action[data-action="copy"] {
-  background: linear-gradient(180deg, #48e6b8 0%, var(--btn-primary) 100%);
-  border-color: rgba(53, 215, 168, 0.9);
-  color: var(--btn-primary-fg);
+  background: linear-gradient(180deg, #8fc5ff 0%, #6ea8ff 100%);
+  border-color: rgba(110, 168, 255, 0.9);
+  color: #0b1730;
+}
+
+.action[data-action="whatsapp"] {
+  background: linear-gradient(180deg, #51e6b8 0%, #2ecb93 100%);
+  border-color: rgba(46, 203, 147, 0.9);
+  color: #082018;
 }
 
 .action[data-action="clear"] {
@@ -127,10 +134,10 @@ body {
 
 .grid {
   width: 100%;
-  aspect-ratio: 5 / 8;
+  aspect-ratio: 5 / 7.6;
   max-width: calc(100vw - var(--safe-l) - var(--safe-r));
   background: var(--grid-bg);
-  border: 1px solid var(--grid-line);
+  border: var(--grid-line-w) solid var(--grid-line);
   border-radius: 12px;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -143,17 +150,23 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(18px, 4vw, 26px);
-  font-weight: 800;
+  font-size: clamp(20px, 4.2vw, 30px);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 .cell:not(:nth-child(5n)) {
-  border-right: 1px solid var(--grid-line);
+  border-right: var(--grid-line-w) solid var(--grid-line);
 }
 
 .cell:not(:nth-last-child(-n + 5)) {
-  border-bottom: 1px solid var(--grid-line);
+  border-bottom: var(--grid-line-w) solid var(--grid-line);
+}
+
+.cell.double {
+  font-size: clamp(17px, 3.5vw, 24px);
 }
 
 .cell.active {
