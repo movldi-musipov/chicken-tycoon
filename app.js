@@ -478,8 +478,6 @@
 
       if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         await navigator.share({
-          title: TEXT.title,
-          text: TEXT.title,
           files: [file]
         });
         showToast(TEXT.whatsappShared);
