@@ -4,6 +4,7 @@
   const TOTAL = ROWS * COLS;
   const STORAGE_KEY = "car_grid_v1";
   const LONG_PRESS_MS = 420;
+  const SINGLE_DIGIT_ADVANCE_MS = 320;
   const UNDO_TIMEOUT_MS = 5000;
   const IMAGE_WIDTH = 1000;
   const IMAGE_PADDING = 40;
@@ -59,6 +60,7 @@
   let clearSnapshot = null;
   let longPressTimer = null;
   let longPressTriggered = false;
+  let pendingAdvanceTimer = null;
 
   const ensureCellValue = (value) => {
     if (typeof value !== "string") return "";
@@ -182,9 +184,27 @@
     cellEl.classList.toggle("double", value.length === 2);
   };
 
+  const clearPendingAdvance = () => {
+    if (pendingAdvanceTimer) {
+      clearTimeout(pendingAdvanceTimer);
+      pendingAdvanceTimer = null;
+    }
+  };
+
+  const schedulePendingAdvance = (index) => {
+    clearPendingAdvance();
+    pendingAdvanceTimer = setTimeout(() => {
+      if (activeIndex === index) {
+        moveNext();
+      }
+      clearPendingAdvance();
+    }, SINGLE_DIGIT_ADVANCE_MS);
+  };
+
   const setActive = (index, options = {}) => {
     const { focus = false } = options;
     const clamped = Math.max(0, Math.min(TOTAL - 1, index));
+    clearPendingAdvance();
     activeIndex = clamped;
 
     cellEls.forEach((cell, idx) => {
@@ -230,6 +250,7 @@
   };
 
   const backspace = () => {
+    clearPendingAdvance();
     const current = cells[activeIndex] || "";
     if (current.length > 0) {
       setCellValue(activeIndex, current.slice(0, -1));
@@ -249,16 +270,19 @@
 
     if (!current) {
       setCellValue(activeIndex, digit);
+      schedulePendingAdvance(activeIndex);
       return;
     }
 
     if (current.length === 1) {
+      clearPendingAdvance();
       setCellValue(activeIndex, `${current}${digit}`);
       moveNext();
       return;
     }
 
     setCellValue(activeIndex, digit);
+    schedulePendingAdvance(activeIndex);
   };
 
   const buildGrid = () => {
@@ -499,6 +523,7 @@
 
   const openClearConfirm = () => {
     if (!confirmBackdropEl) return;
+    clearPendingAdvance();
     confirmBackdropEl.hidden = false;
     requestAnimationFrame(() => {
       confirmBackdropEl.classList.add("show");
