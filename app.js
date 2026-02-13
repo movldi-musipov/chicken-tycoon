@@ -4,7 +4,7 @@
   const TOTAL = ROWS * COLS;
   const STORAGE_KEY = "car_grid_v1";
   const LONG_PRESS_MS = 420;
-  const SINGLE_DIGIT_ADVANCE_MS = 320;
+  const SINGLE_DIGIT_ADVANCE_MS = 448;
   const UNDO_TIMEOUT_MS = 5000;
   const IMAGE_WIDTH = 1000;
   const IMAGE_PADDING = 40;
